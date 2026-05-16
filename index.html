@@ -113,7 +113,7 @@ body{font-family:'Jost',sans-serif;background:var(--cream);color:var(--text);fon
 .cta-a{display:block;width:100%;padding:13px;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#fff;text-decoration:none;text-align:center;font-family:'Jost',sans-serif;font-size:.72rem;font-weight:500;letter-spacing:.2em;text-transform:uppercase;border-radius:2px;transition:opacity .2s}
 .cta-a:hover{opacity:.9}
 /* PROTECT */
-#po{display:none;position:fixed;inset:0;z-index:99999;background:var(--olive3);align-items:center;justify-content:center;flex-direction:column;gap:16px;color:#fff;font-family:'Jost',sans-serif;font-size:.9rem;letter-spacing:.1em;text-transform:uppercase}
+#po{display:none;position:fixed;inset:0;z-index:2147483647;background:#0a0c09;align-items:center;justify-content:center;flex-direction:column;gap:20px;color:#fff;font-family:'Jost',sans-serif;font-size:.9rem;letter-spacing:.1em;text-align:center;user-select:none;-webkit-user-select:none;}
 #po svg{width:40px;height:40px;opacity:.4}
 /* RATING */
 #rs{max-width:600px;margin:0 auto 60px;background:#fff;border:1px solid rgba(184,151,74,.2);border-radius:3px;padding:36px 32px;text-align:center;box-shadow:0 2px 16px var(--sh)}
@@ -237,6 +237,32 @@ body{font-family:'Jost',sans-serif;background:var(--cream);color:var(--text);fon
 .ap-btn-olive{background:var(--olive);color:#fff;}
 .ap-btn-gold{background:var(--gold);color:#fff;}
 .ap-btn-red{background:#c9847a;color:#fff;}
+
+/* SCREEN PROTECTION */
+.app-protected {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+#app, #sobre-publica {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+}
+/* CSS-only print block */
+@media print {
+  body * { display: none !important; }
+  body::after {
+    display: block !important;
+    content: 'Este conteudo e protegido. A Central do Casamento.';
+    font-family: Georgia, serif;
+    font-size: 1.2rem;
+    color: #4A5240;
+    text-align: center;
+    margin-top: 40%;
+  }
+}
 </style>
 </head>
 <body>
@@ -685,17 +711,56 @@ function loginComSenhaGerada() {
 }
 
 // ===== PROTECTION =====
-document.addEventListener('keydown', function(e){
-  if(e.key==='PrintScreen'||(e.ctrlKey&&e.shiftKey)||(e.metaKey&&e.shiftKey)){
-    e.preventDefault();
-    var o=document.getElementById('po');
-    o.style.display='flex';
-    document.body.style.filter='blur(12px)';
-    setTimeout(function(){o.style.display='none';document.body.style.filter='';},2500);
+// ===== SCREEN PROTECTION =====
+(function(){
+
+  function showOverlay(){
+    var o = document.getElementById('po');
+    if(o) o.style.display = 'flex';
   }
-});
-window.addEventListener('blur',function(){document.body.style.filter='blur(8px)';});
-window.addEventListener('focus',function(){document.body.style.filter='';});
+  function hideOverlay(){
+    var o = document.getElementById('po');
+    if(o) o.style.display = 'none';
+  }
+
+  // Block PrintScreen and screenshot keyboard shortcuts only
+  document.addEventListener('keydown', function(e){
+    var isScreenshot =
+      e.key === 'PrintScreen' ||
+      (e.metaKey && e.shiftKey && ['3','4','5','6','s','S'].includes(e.key)) ||
+      (e.ctrlKey && e.shiftKey && ['s','S'].includes(e.key));
+
+    if(isScreenshot){
+      e.preventDefault();
+      e.stopPropagation();
+      showOverlay();
+      setTimeout(hideOverlay, 2500);
+    }
+  }, true);
+
+  // Block right-click only inside the app (cards area)
+  document.addEventListener('contextmenu', function(e){
+    var app = document.getElementById('app');
+    if(app && app.style.display !== 'none') e.preventDefault();
+  });
+
+  // Block drag inside app
+  document.addEventListener('dragstart', function(e){
+    var app = document.getElementById('app');
+    if(app && app.style.display !== 'none') e.preventDefault();
+  });
+
+  // Block text selection inside app (except inputs)
+  document.addEventListener('selectstart', function(e){
+    var app = document.getElementById('app');
+    if(app && app.style.display !== 'none'){
+      if(!e.target.matches('input, textarea, .forn-input, .rta, .ap-filter-input')){
+        e.preventDefault();
+      }
+    }
+  });
+
+})();
 
 // ===== CARD TOGGLE =====
 function tCard(el){el.classList.toggle('open');}
