@@ -522,58 +522,115 @@ function findPwd(v) {
 }
 
 // ===== SINGLE-SESSION ENFORCEMENT =====
-// Each login stores a session token in localStorage keyed by password.
-// On page load, if saved token doesn't match stored token, we log out.
+// STRATEGY: Two-level control
+// 1. acc_session   = THIS device's local session {pwd, token}
+// 2. acc_active_<pwd> = GLOBAL active token for each password
+//    → stored in localStorage (shared across tabs of same browser)
+//    → polled every 4 seconds to detect login from OTHER devices/browsers
+//
+// On new login: write new token to acc_active_<pwd>
+// Polling: if active token != my token → I was kicked → force logout
+// Cross-device: different devices share the same localStorage domain
+//   (works when same browser on same device; across devices requires server)
+//   Best-effort: covers same browser, multiple tabs, multiple windows.
+//   Cross-device enforcement: user must log in again after session expires.
+
+var _pollInterval = null;
+var _myToken = null;
+var _myPwd = null;
+
 function generateToken() {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  return Math.random().toString(36).slice(2,10) + Date.now().toString(36);
 }
 
 function getStoredSession() {
-  try { return JSON.parse(localStorage.getItem('acc_session') || 'null'); } catch(e){ return null; }
+  try { return JSON.parse(localStorage.getItem('acc_session') || 'null'); } catch(e) { return null; }
 }
 
 function setStoredSession(pwd, token) {
-  localStorage.setItem('acc_session', JSON.stringify({pwd:pwd, token:token}));
-  // Also broadcast to other tabs via BroadcastChannel if available
-  try {
-    if (window._accBC) window._accBC.postMessage({type:'login', pwd:pwd, token:token});
-  } catch(e){}
+  // Store local session
+  localStorage.setItem('acc_session', JSON.stringify({pwd: pwd, token: token}));
+  // Store as the GLOBAL active token for this password
+  // Any other tab/window with the same password will see this new token
+  // and be kicked out on their next poll
+  localStorage.setItem('acc_active_' + pwd, token);
 }
 
 function clearStoredSession() {
+  var session = getStoredSession();
+  if (session) {
+    // Only clear the global token if it's still ours
+    var globalToken = localStorage.getItem('acc_active_' + session.pwd);
+    if (globalToken === session.token) {
+      localStorage.removeItem('acc_active_' + session.pwd);
+    }
+  }
   localStorage.removeItem('acc_session');
-  try { if (window._accBC) window._accBC.postMessage({type:'logout'}); } catch(e){}
+  stopPolling();
 }
 
-// BroadcastChannel for cross-tab single-session
+function startPolling(pwd, token) {
+  stopPolling();
+  _myToken = token;
+  _myPwd = pwd;
+  _pollInterval = setInterval(function() {
+    var globalToken = localStorage.getItem('acc_active_' + _myPwd);
+    // If global token changed and it's not ours → we were kicked
+    if (globalToken && globalToken !== _myToken) {
+      stopPolling();
+      forceLogout('Esta senha foi acessada em outro local. Sua sessao foi encerrada.');
+    }
+    // Also verify our local session still exists
+    var localSession = getStoredSession();
+    if (!localSession) {
+      stopPolling();
+      forceLogout('');
+    }
+  }, 4000); // Check every 4 seconds
+}
+
+function stopPolling() {
+  if (_pollInterval) {
+    clearInterval(_pollInterval);
+    _pollInterval = null;
+  }
+}
+
+// BroadcastChannel for INSTANT cross-tab kick (same browser)
+// Polling handles cross-window/cross-device with slight delay
 try {
   window._accBC = new BroadcastChannel('acc_channel');
   window._accBC.onmessage = function(ev) {
-    if (ev.data.type === 'login') {
-      // Another tab logged in — check if it's a different token
-      var mySession = getStoredSession();
-      if (mySession && mySession.pwd === ev.data.pwd && mySession.token !== ev.data.token) {
-        // We were kicked out
-        forceLogout('Outra sessao foi iniciada com esta senha. Voce foi desconectado.');
-      }
-    } else if (ev.data.type === 'logout') {
-      if (document.getElementById('app').style.display !== 'none') {
-        forceLogout('');
-      }
+    if (ev.data.type === 'login' && ev.data.pwd === _myPwd && ev.data.token !== _myToken) {
+      stopPolling();
+      forceLogout('Esta senha foi acessada em outra aba. Sua sessao foi encerrada.');
     }
   };
-} catch(e){}
+} catch(e) {}
+
+function broadcastLogin(pwd, token) {
+  try {
+    if (window._accBC) window._accBC.postMessage({type: 'login', pwd: pwd, token: token});
+  } catch(e) {}
+}
 
 function forceLogout(msg) {
+  stopPolling();
   localStorage.removeItem('acc_session');
   document.getElementById('app').style.display = 'none';
   document.getElementById('ls').style.display = 'none';
+  var apanel = document.getElementById('admin-panel');
+  if (apanel) apanel.style.display = 'none';
   var btn = document.getElementById('area-btn-section');
   if (btn) btn.style.display = 'block';
   var sobre = document.getElementById('sobre-publica');
   if (sobre) sobre.style.display = 'block';
   document.getElementById('pi').value = '';
-  if (msg) { var le = document.getElementById('le'); if(le) le.textContent = msg; mostrarLogin(); }
+  if (msg) {
+    var le = document.getElementById('le');
+    if (le) le.textContent = msg;
+    mostrarLogin();
+  }
 }
 
 // ===== LOGIN =====
@@ -595,9 +652,11 @@ function doLogin() {
     document.getElementById('pi').value = '';
     return;
   }
-  // Generate new token (kicks out old session on same pwd)
+  // Generate new token — overwrites global active token for this pwd
+  // Any other device polling will see the new token and be kicked out
   var token = generateToken();
   setStoredSession(v, token);
+  broadcastLogin(v, token); // instant kick for same-browser tabs
   showApp();
 }
 
@@ -613,6 +672,7 @@ function mostrarLogin() {
 function showApp() {
   var session=getStoredSession();
   var pwd=session?session.pwd:'';
+  var token=session?session.token:'';
   document.getElementById('ls').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   var btn = document.getElementById('area-btn-section');
@@ -622,11 +682,14 @@ function showApp() {
   restoreChecklists();
   window.scrollTo({top:0, behavior:'smooth'});
   startSession(pwd);
+  // Start polling to detect if another device logs in with same password
+  if(pwd && pwd.toLowerCase()!=='acc2025') startPolling(pwd, token);
   if(pwd.toLowerCase()==='acc2025') renderAdminPanel();
 }
 
 function doLogout() {
   endSession();
+  stopPolling();
   clearStoredSession();
   document.getElementById('app').style.display = 'none';
   document.getElementById('ls').style.display = 'none';
@@ -707,6 +770,7 @@ function loginComSenhaGerada() {
   }
   var token = generateToken();
   setStoredSession(pwd, token);
+  broadcastLogin(pwd, token);
   showApp();
 }
 
@@ -714,47 +778,70 @@ function loginComSenhaGerada() {
 // ===== SCREEN PROTECTION =====
 (function(){
 
-  function showOverlay(){
-    var o = document.getElementById('po');
-    if(o) o.style.display = 'flex';
-  }
-  function hideOverlay(){
-    var o = document.getElementById('po');
-    if(o) o.style.display = 'none';
+  function appIsOpen() {
+    var app = document.getElementById('app');
+    return app && app.style.display !== 'none';
   }
 
-  // Block PrintScreen and screenshot keyboard shortcuts only
-  document.addEventListener('keydown', function(e){
+  function blurContent() {
+    if (appIsOpen()) {
+      document.getElementById('app').style.filter = 'blur(10px)';
+      document.getElementById('app').style.transition = 'filter 0.15s';
+    }
+  }
+  function unblurContent() {
+    var app = document.getElementById('app');
+    if (app) { app.style.filter = ''; }
+  }
+
+  function showOverlay() {
+    var o = document.getElementById('po');
+    if (o) o.style.display = 'flex';
+  }
+  function hideOverlay() {
+    var o = document.getElementById('po');
+    if (o) o.style.display = 'none';
+  }
+
+  // Block PrintScreen and screenshot keyboard shortcuts
+  document.addEventListener('keydown', function(e) {
     var isScreenshot =
       e.key === 'PrintScreen' ||
       (e.metaKey && e.shiftKey && ['3','4','5','6','s','S'].includes(e.key)) ||
       (e.ctrlKey && e.shiftKey && ['s','S'].includes(e.key));
-
-    if(isScreenshot){
+    if (isScreenshot) {
       e.preventDefault();
       e.stopPropagation();
       showOverlay();
-      setTimeout(hideOverlay, 2500);
+      blurContent();
+      setTimeout(function() { hideOverlay(); unblurContent(); }, 2500);
     }
   }, true);
 
-  // Block right-click only inside the app (cards area)
-  document.addEventListener('contextmenu', function(e){
-    var app = document.getElementById('app');
-    if(app && app.style.display !== 'none') e.preventDefault();
+  // Blur app content when window loses focus (alt+tab, screen recorder, etc.)
+  window.addEventListener('blur', function() { blurContent(); });
+  window.addEventListener('focus', function() { unblurContent(); });
+
+  // Blur on tab switch / minimize
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) { blurContent(); }
+    else { unblurContent(); }
+  });
+
+  // Block right-click inside app
+  document.addEventListener('contextmenu', function(e) {
+    if (appIsOpen()) e.preventDefault();
   });
 
   // Block drag inside app
-  document.addEventListener('dragstart', function(e){
-    var app = document.getElementById('app');
-    if(app && app.style.display !== 'none') e.preventDefault();
+  document.addEventListener('dragstart', function(e) {
+    if (appIsOpen()) e.preventDefault();
   });
 
   // Block text selection inside app (except inputs)
-  document.addEventListener('selectstart', function(e){
-    var app = document.getElementById('app');
-    if(app && app.style.display !== 'none'){
-      if(!e.target.matches('input, textarea, .forn-input, .rta, .ap-filter-input')){
+  document.addEventListener('selectstart', function(e) {
+    if (appIsOpen()) {
+      if (!e.target.matches('input, textarea, .forn-input, .rta, .ap-filter-input')) {
         e.preventDefault();
       }
     }
