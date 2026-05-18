@@ -345,6 +345,38 @@ body.is-admin * {
 #app input, #app textarea, #app select {
   font-size: 16px !important;
 }
+
+/* ORCAMENTO FORNECEDORES */
+.forn-budget-box{background:rgba(184,151,74,.06);border:1px solid rgba(184,151,74,.2);border-radius:2px;padding:14px 16px;margin-bottom:16px;}
+.forn-budget-title{font-family:'Jost',sans-serif;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:10px;font-weight:500;}
+.forn-budget-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
+.forn-budget-row:last-child{margin-bottom:0;}
+.forn-budget-label{font-family:'Jost',sans-serif;font-size:.78rem;color:var(--text2);font-weight:300;min-width:160px;flex-shrink:0;}
+.forn-budget-value{font-family:'Jost',sans-serif;font-size:.9rem;font-weight:500;color:var(--olive3);}
+.forn-budget-input{flex:1;min-width:140px;padding:7px 10px;border:1px solid rgba(184,151,74,.3);border-radius:2px;background:#fff;font-family:'Jost',sans-serif;font-size:.84rem;color:var(--text);outline:none;}
+.forn-budget-input:focus{border-color:var(--gold);}
+.forn-total-box{background:rgba(74,82,64,.06);border:1px solid rgba(74,82,64,.15);border-radius:2px;padding:12px 16px;margin:14px 0 6px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+.forn-total-label{font-family:'Jost',sans-serif;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--olive3);font-weight:500;}
+.forn-total-value{font-family:'Cormorant Garamond',serif;font-size:1.25rem;font-weight:600;color:var(--olive3);}
+.forn-total-diff{font-family:'Jost',sans-serif;font-size:.72rem;font-weight:400;}
+.forn-total-diff.over{color:#c9847a;}
+.forn-total-diff.under{color:#5a8a5a;}
+.forn-input.forn-valor{margin-top:5px;}
+.pdf-opt-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-family:'Jost',sans-serif;font-size:.78rem;color:var(--text2);}
+.pdf-opt-row input[type=checkbox]{accent-color:var(--gold);width:14px;height:14px;cursor:pointer;}
+
+/* PDF PRINT OVERLAY */
+#print-overlay{display:none;position:fixed;inset:0;z-index:99999;background:#fff;overflow-y:auto;padding:40px;box-sizing:border-box;}
+#print-overlay.active{display:block;}
+.print-close-btn{position:fixed;top:16px;right:16px;padding:8px 20px;background:var(--olive);color:#fff;border:none;border-radius:2px;font-family:'Jost',sans-serif;font-size:.72rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;z-index:100000;}
+.print-action-btn{position:fixed;top:16px;right:130px;padding:8px 20px;background:var(--gold);color:#fff;border:none;border-radius:2px;font-family:'Jost',sans-serif;font-size:.72rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;z-index:100000;}
+@media print{
+  body > *:not(#print-overlay){ display:none !important; }
+  #print-overlay{ display:block !important; position:static !important; padding:0 !important; }
+  #print-overlay .print-close-btn,
+  #print-overlay .print-action-btn{ display:none !important; }
+  #wm-overlay{ display:block !important; }
+}
 </style>
 </head>
 <body>
@@ -372,6 +404,11 @@ body.is-admin * {
 </div>
 
 <div id="wm-overlay" aria-hidden="true"></div>
+<div id="print-overlay">
+  <button class="print-close-btn" onclick="fecharPrintOverlay()">&#10005; Fechar</button>
+  <button class="print-action-btn" onclick="window.print()">Imprimir / Salvar PDF</button>
+  <div id="print-content"></div>
+</div>
 <div id="po"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><span>Conteudo protegido</span></div>
 <section id="sobre-publica">
 
@@ -684,6 +721,24 @@ body.is-admin * {
   </div>
 </div>
 <script>
+
+// ===== PRINT OVERLAY =====
+function abrirPrintOverlay(html) {
+  var overlay = document.getElementById('print-overlay');
+  var content = document.getElementById('print-content');
+  if (!overlay || !content) return;
+  content.innerHTML = html;
+  overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+function fecharPrintOverlay() {
+  var overlay = document.getElementById('print-overlay');
+  if (overlay) overlay.classList.remove('active');
+  document.body.style.overflow = '';
+  var content = document.getElementById('print-content');
+  if (content) content.innerHTML = '';
+}
+
 // ===== CODIGOS DE ATIVACAO =====
 var ACT_CODES_KEY = 'acc_activation_codes';
 
@@ -1176,6 +1231,13 @@ function loginComSenhaGerada() {
 
 // ===== PROTECTION =====
 // ===== SCREEN PROTECTION — FULL LAYER =====
+
+// Global helper — used by renderCards and protection IIFE
+function isAdmin(){
+  var s = getStoredSession();
+  return s && s.pwd && s.pwd.toLowerCase() === 'acc2025';
+}
+
 (function(){
 
   var _wmActive = false;
@@ -1184,10 +1246,6 @@ function loginComSenhaGerada() {
   function appIsOpen(){
     var a=document.getElementById('app');
     return a && a.style.display!=='none';
-  }
-  function isAdmin(){
-    var s=getStoredSession();
-    return s && s.pwd && s.pwd.toLowerCase()==='acc2025';
   }
 
   // ── WATERMARK ────────────────────────────────────────────
@@ -1530,7 +1588,7 @@ function exportAdminPDF(){
     +'<table width="100%"><thead><tr><th>Senha</th><th>Evento</th><th>Data</th><th>Horario</th><th>Duracao</th></tr></thead><tbody>'
     +logs.map(function(l){return '<tr><td>'+l.pwd+'</td><td>'+l.event+'</td><td>'+l.date+'</td><td>'+l.time+'</td><td>'+(l.duration||'--')+'</td></tr>';}).join('')
     +'</tbody></table></body></html>';
-  var w=window.open('','_blank');w.document.write(html);w.document.close();setTimeout(function(){w.print();},600);
+  abrirPrintOverlay(html);
 }
 function clearAdminLogs(){
   if(confirm('Apagar todos os registros de acesso?')){localStorage.removeItem(ACC_LOG_KEY);renderAdminTable();}
@@ -1600,6 +1658,73 @@ function forceLogoutAll() {
   alert('Sessoes encerradas: '+pwds.join(', '));
 }
 
+
+// ===== FORNECEDORES — ORCAMENTO & VALORES =====
+
+function parseMoeda(str) {
+  // Parses "R$ 2.500,00" or "2500" or "2.500,00" → number
+  if (!str) return 0;
+  var s = str.replace(/R\$\s*/g,'').replace(/\./g,'').replace(',','.').trim();
+  var n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function formatMoeda(val) {
+  return 'R$ ' + val.toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+}
+
+function calcImprevisto() {
+  var prev = parseMoeda(document.getElementById('forn-prev-gastos') ? document.getElementById('forn-prev-gastos').value : '0');
+  var imp = prev * 0.05;
+  var total = prev + imp;
+  var impEl = document.getElementById('forn-imprevisto');
+  var totEl = document.getElementById('forn-prev-total');
+  if (impEl) impEl.textContent = formatMoeda(imp);
+  if (totEl) totEl.textContent = formatMoeda(total);
+  // Save to localStorage
+  var data = loadFornData();
+  data['__prev_gastos__'] = document.getElementById('forn-prev-gastos').value;
+  saveFornData(data);
+  updateTotalValor();
+}
+
+function saveFornValor(idx, val) {
+  saveFornDetail(idx, 'valor', val);
+  updateTotalValor();
+}
+
+function updateTotalValor() {
+  var data = loadFornData();
+  var total = 0;
+  Object.keys(data).forEach(function(k) {
+    if (k === '__prev_gastos__') return;
+    var d = data[k];
+    if (d && d.status === 'contratado' && d.valor) {
+      total += parseMoeda(d.valor);
+    }
+  });
+  var el = document.getElementById('forn-total-valor');
+  if (el) el.textContent = formatMoeda(total);
+
+  // Compare with previsao
+  var prevEl = document.getElementById('forn-prev-gastos');
+  var prev = prevEl ? parseMoeda(prevEl.value) : 0;
+  var diffEl = document.getElementById('forn-diff-row');
+  if (diffEl && prev > 0 && total > 0) {
+    var diff = total - prev;
+    var pct = ((diff / prev) * 100).toFixed(1);
+    if (diff > 0) {
+      diffEl.innerHTML = '<span class="forn-total-diff over">&#9650; ' + formatMoeda(diff) + ' acima da previsao (' + pct + '%)</span>';
+    } else if (diff < 0) {
+      diffEl.innerHTML = '<span class="forn-total-diff under">&#9660; ' + formatMoeda(Math.abs(diff)) + ' abaixo da previsao (' + Math.abs(pct) + '%)</span>';
+    } else {
+      diffEl.innerHTML = '<span class="forn-total-diff under">Exatamente dentro da previsao</span>';
+    }
+  } else if (diffEl) {
+    diffEl.innerHTML = '';
+  }
+}
+
 // ===== FORNECEDORES =====
 function getFornKey(){
   var s=getStoredSession();
@@ -1655,6 +1780,11 @@ function updateFornStats() {
 function restoreFornData() {
   var data = loadFornData();
   Object.keys(data).forEach(function(idx){
+    if (idx === '__prev_gastos__') {
+      var prevEl = document.getElementById('forn-prev-gastos');
+      if (prevEl) { prevEl.value = data[idx]; calcImprevisto(); }
+      return;
+    }
     var d = data[idx];
     if (d.status) renderFornItem(idx, d.status);
     if (d.nome) {
@@ -1665,34 +1795,66 @@ function restoreFornData() {
       var el = document.querySelector('.forn-item[data-idx="'+idx+'"] .forn-tel');
       if(el) el.value = d.tel;
     }
+    if (d.valor) {
+      var el = document.querySelector('.forn-item[data-idx="'+idx+'"] .forn-valor');
+      if(el) el.value = d.valor;
+    }
   });
   updateFornStats();
+  updateTotalValor();
 }
 
 function gerarPDFFornecedores() {
   var data = loadFornData();
   var sections = window._fornSections || [];
-  
+  var mostrarValores = document.getElementById('pdf-mostrar-valores') ? document.getElementById('pdf-mostrar-valores').checked : true;
+  var mostrarTotal = document.getElementById('pdf-mostrar-total') ? document.getElementById('pdf-mostrar-total').checked : true;
+  var prevGastos = data['__prev_gastos__'] || '';
+  var prevNum = parseMoeda(prevGastos);
+
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'
-    +'<style>body{font-family:Georgia,serif;color:#3A3228;background:#FDF8EE;padding:40px;max-width:800px;margin:0 auto;}'
-    +'h1{font-size:1.6rem;color:#4A5240;letter-spacing:.05em;margin-bottom:4px;}' 
-    +'.subtitle{font-size:.8rem;color:#9A7A38;letter-spacing:.12em;text-transform:uppercase;margin-bottom:30px;border-bottom:1px solid rgba(184,151,74,.3);padding-bottom:12px;}'
-    +'h2{font-size:.85rem;letter-spacing:.18em;text-transform:uppercase;color:#B8974A;margin:20px 0 8px;}'
-    +'.frow{display:flex;justify-content:space-between;align-items:flex-start;padding:7px 10px;border-bottom:1px solid rgba(184,151,74,.1);font-size:.84rem;}'
+    +'<style>'
+    +'body{font-family:Georgia,serif;color:#3A3228;background:#FDF8EE;padding:40px;max-width:800px;margin:0 auto;}'
+    +'h1{font-size:1.6rem;color:#4A5240;letter-spacing:.05em;margin-bottom:4px;}'
+    +'.subtitle{font-size:.8rem;color:#9A7A38;letter-spacing:.12em;text-transform:uppercase;margin-bottom:20px;border-bottom:1px solid rgba(184,151,74,.3);padding-bottom:12px;}'
+    +'.budget-box{background:rgba(184,151,74,.06);border:1px solid rgba(184,151,74,.2);border-radius:4px;padding:14px 16px;margin-bottom:24px;font-size:.84rem;}'
+    +'.budget-row{display:flex;justify-content:space-between;margin-bottom:4px;}'
+    +'.budget-lbl{color:#6B7560;}'
+    +'.budget-val{font-weight:bold;color:#4A5240;}'
+    +'h2{font-size:.82rem;letter-spacing:.18em;text-transform:uppercase;color:#B8974A;margin:20px 0 6px;}'
+    +'.frow{display:flex;justify-content:space-between;align-items:flex-start;padding:7px 10px;border-bottom:1px solid rgba(184,151,74,.1);font-size:.82rem;gap:8px;}'
     +'.frow:nth-child(even){background:rgba(184,151,74,.04);}'
     +'.fn{flex:1;color:#3A3228;}'
-    +'.fs{font-size:.72rem;padding:2px 8px;border-radius:12px;font-weight:500;letter-spacing:.06em;}'
+    +'.fval{font-size:.78rem;color:#4A5240;font-weight:500;white-space:nowrap;}'
+    +'.fs{font-size:.7rem;padding:2px 8px;border-radius:12px;font-weight:500;white-space:nowrap;}'
     +'.fs-orc{background:rgba(184,151,74,.15);color:#9A7A38;}'
     +'.fs-nao{background:rgba(201,132,122,.15);color:#8a3a2a;}'
     +'.fs-cont{background:rgba(74,82,64,.12);color:#2E3328;}'
     +'.fs-pend{background:rgba(0,0,0,.06);color:#888;}'
-    +'.fdet{font-size:.75rem;color:#6B7560;margin-top:3px;}'
-    +'.footer{margin-top:40px;font-size:.7rem;color:#9A7A38;letter-spacing:.08em;text-align:center;border-top:1px solid rgba(184,151,74,.2);padding-top:16px;}'
+    +'.fdet{font-size:.72rem;color:#6B7560;margin-top:3px;}'
+    +'.total-box{margin-top:28px;border-top:2px solid rgba(184,151,74,.3);padding-top:14px;display:flex;justify-content:space-between;align-items:center;}'
+    +'.total-lbl{font-size:.85rem;letter-spacing:.1em;text-transform:uppercase;color:#4A5240;font-weight:bold;}'
+    +'.total-val{font-size:1.3rem;font-weight:bold;color:#4A5240;}'
+    +'.diff{font-size:.75rem;margin-top:4px;text-align:right;}'
+    +'.over{color:#c9847a;}.under{color:#5a8a5a;}'
+    +'.footer{margin-top:32px;font-size:.7rem;color:#9A7A38;letter-spacing:.08em;text-align:center;border-top:1px solid rgba(184,151,74,.2);padding-top:14px;}'
     +'@media print{body{background:#fff;}}'
     +'</style></head><body>'
     +'<h1>A Central do Casamento</h1>'
     +'<div class="subtitle">Controle de Fornecedores &mdash; gerado em ' + new Date().toLocaleDateString('pt-BR') + '</div>';
-  
+
+  // Budget summary
+  if (prevGastos) {
+    var imp = prevNum * 0.05;
+    var prevTotal = prevNum + imp;
+    html += '<div class="budget-box">'
+      +'<div class="budget-row"><span class="budget-lbl">Previsao de gastos</span><span class="budget-val">' + formatMoeda(prevNum) + '</span></div>'
+      +'<div class="budget-row"><span class="budget-lbl">Taxa de imprevisto (5%)</span><span class="budget-val">' + formatMoeda(imp) + '</span></div>'
+      +'<div class="budget-row"><span class="budget-lbl">Previsao com imprevisto</span><span class="budget-val">' + formatMoeda(prevTotal) + '</span></div>'
+      +'</div>';
+  }
+
+  var totalContratado = 0;
   sections.forEach(function(sec){
     html += '<h2>' + sec.title + '</h2>';
     sec.items.forEach(function(item){
@@ -1700,7 +1862,10 @@ function gerarPDFFornecedores() {
       var status = d.status || '';
       var statusLabel = status==='orcamento'?'Orcamento':status==='nao'?'Nao contratado':status==='contratado'?'Contratado':'Pendente';
       var statusClass = status==='orcamento'?'fs-orc':status==='nao'?'fs-nao':status==='contratado'?'fs-cont':'fs-pend';
-      html += '<div class="frow"><div class="fn">'+item.name;
+      var valorNum = (status==='contratado' && d.valor) ? parseMoeda(d.valor) : 0;
+      if (valorNum) totalContratado += valorNum;
+
+      html += '<div class="frow"><div class="fn">' + item.name;
       if (status==='contratado' && (d.nome||d.tel)) {
         html += '<div class="fdet">';
         if(d.nome) html += d.nome;
@@ -1708,17 +1873,30 @@ function gerarPDFFornecedores() {
         if(d.tel) html += d.tel;
         html += '</div>';
       }
-      html += '</div><span class="fs '+statusClass+'">'+statusLabel+'</span></div>';
+      html += '</div>';
+      if (mostrarValores && status==='contratado' && d.valor) {
+        html += '<span class="fval">' + d.valor + '</span>';
+      }
+      html += '<span class="fs ' + statusClass + '">' + statusLabel + '</span></div>';
     });
   });
-  
-  html += '<div class="footer">Uma criacao de Silvana Santana Cerimonialista &mdash; Sorriso/MT</div>'
-    +'</body></html>';
-  
-  var w = window.open('','_blank');
-  w.document.write(html);
-  w.document.close();
-  setTimeout(function(){ w.print(); }, 600);
+
+  // Total
+  if (mostrarTotal && totalContratado > 0) {
+    html += '<div class="total-box"><div><div class="total-lbl">Total Investido no Casamento</div>';
+    if (prevGastos && prevNum > 0) {
+      var diff = totalContratado - prevNum;
+      var pct = ((diff/prevNum)*100).toFixed(1);
+      var diffClass = diff > 0 ? 'over' : 'under';
+      var diffSinal = diff > 0 ? '&#9650; ' : '&#9660; ';
+      html += '<div class="diff ' + diffClass + '">' + diffSinal + formatMoeda(Math.abs(diff)) + ' ' + (diff>0?'acima':'abaixo') + ' da previsao (' + Math.abs(pct) + '%)</div>';
+    }
+    html += '</div><div class="total-val">' + formatMoeda(totalContratado) + '</div></div>';
+  }
+
+  html += '<div class="footer">Uma criacao de Silvana Santana Cerimonialista &mdash; Sorriso/MT</div></body></html>';
+
+  abrirPrintOverlay(html);
 }
 
 
@@ -1871,12 +2049,27 @@ function renderCards(){
   });
   window._fornSections = fornSectionsIndexed;
   
-  var fornBody = '<div id="forn-stats" class="forn-stats">'
+  var fornBody = ''
+    +'<div class="forn-budget-box">'
+    +'<div class="forn-budget-title">Previsao de Gastos</div>'
+    +'<div class="forn-budget-row">'
+    +'<span class="forn-budget-label">Previsao total de gastos</span>'
+    +'<input type="text" class="forn-budget-input" id="forn-prev-gastos" placeholder="R$ 0,00" oninput="calcImprevisto()">'
+    +'</div>'
+    +'<div class="forn-budget-row">'
+    +'<span class="forn-budget-label">Taxa de imprevisto (5%)</span>'
+    +'<span class="forn-budget-value" id="forn-imprevisto">R$ 0,00</span>'
+    +'</div>'
+    +'<div class="forn-budget-row">'
+    +'<span class="forn-budget-label">Previsao com imprevisto</span>'
+    +'<span class="forn-budget-value" id="forn-prev-total">R$ 0,00</span>'
+    +'</div>'
+    +'</div>'
+    +'<div id="forn-stats" class="forn-stats">'
     +'<div class="forn-stat"><div class="fs-num">0</div><div class="fs-lbl">Em orcamento</div></div>'
     +'<div class="forn-stat"><div class="fs-num">0</div><div class="fs-lbl">Nao contratado</div></div>'
     +'<div class="forn-stat"><div class="fs-num">0</div><div class="fs-lbl">Contratados</div></div>'
     +'</div>';
-  
   fornSectionsIndexed.forEach(function(sec){
     fornBody += '<div class="forn-section"><div class="forn-section-title">'+sec.title+'</div>';
     sec.items.forEach(function(item){
@@ -1890,13 +2083,24 @@ function renderCards(){
         +'<div class="forn-details">'
         +'<input type="text" class="forn-input forn-nome" placeholder="Nome do fornecedor" oninput="saveFornDetail('+item.idx+',\'nome\',this.value)">'
         +'<input type="text" class="forn-input forn-tel" placeholder="Telefone / WhatsApp" oninput="saveFornDetail('+item.idx+',\'tel\',this.value)">'
+        +'<input type="text" class="forn-input forn-valor" placeholder="Valor do contrato (opcional) ex: R$ 2.500,00" oninput="saveFornValor('+item.idx+',this.value)">'
         +'</div>'
         +'</div>';
     });
     fornBody += '</div>';
   });
-  
-  fornBody += '<button class="forn-pdf-btn" onclick="gerarPDFFornecedores()">'
+
+  fornBody += '<div class="forn-total-box">'
+    +'<span class="forn-total-label">Total contratado</span>'
+    +'<span class="forn-total-value" id="forn-total-valor">R$ 0,00</span>'
+    +'</div>'
+    +'<div id="forn-diff-row" style="text-align:right;margin-bottom:10px;"></div>'
+    +'<div style="background:rgba(184,151,74,.04);border:1px solid rgba(184,151,74,.12);border-radius:2px;padding:12px 14px;margin-bottom:10px;">'
+    +'<div style="font-family:\'Jost\',sans-serif;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:8px;">Opcoes do PDF</div>'
+    +'<div class="pdf-opt-row"><input type="checkbox" id="pdf-mostrar-valores" checked><label for="pdf-mostrar-valores">Incluir valores dos contratos no PDF</label></div>'
+    +'<div class="pdf-opt-row"><input type="checkbox" id="pdf-mostrar-total" checked><label for="pdf-mostrar-total">Incluir total do investimento no PDF</label></div>'
+    +'</div>'
+    +'<button class="forn-pdf-btn" onclick="gerarPDFFornecedores()">'
     +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
     +'Gerar PDF</button>';
   
