@@ -371,11 +371,11 @@ body.is-admin * {
 .print-close-btn{position:fixed;top:16px;right:16px;padding:8px 20px;background:var(--olive);color:#fff;border:none;border-radius:2px;font-family:'Jost',sans-serif;font-size:.72rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;z-index:100000;}
 .print-action-btn{position:fixed;top:16px;right:130px;padding:8px 20px;background:var(--gold);color:#fff;border:none;border-radius:2px;font-family:'Jost',sans-serif;font-size:.72rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;z-index:100000;}
 @media print{
-  body > *:not(#print-overlay){ display:none !important; }
-  #print-overlay{ display:block !important; position:static !important; padding:0 !important; }
+  /* Only used as fallback — iframe handles normal printing */
+  body > *:not(#print-overlay):not(#_print_frame){ display:none !important; }
+  #print-overlay{ display:block !important; position:static !important; padding:20px !important; }
   #print-overlay .print-close-btn,
   #print-overlay .print-action-btn{ display:none !important; }
-  #wm-overlay{ display:block !important; }
 }
 </style>
 </head>
@@ -406,7 +406,7 @@ body.is-admin * {
 <div id="wm-overlay" aria-hidden="true"></div>
 <div id="print-overlay">
   <button class="print-close-btn" onclick="fecharPrintOverlay()">&#10005; Fechar</button>
-  <button class="print-action-btn" onclick="window.print()">Imprimir / Salvar PDF</button>
+  <button class="print-action-btn" onclick="imprimirViaIframe()">&#128438; Imprimir / Salvar PDF</button>
   <div id="print-content"></div>
 </div>
 <div id="po"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><span>Conteudo protegido</span></div>
@@ -724,19 +724,66 @@ body.is-admin * {
 
 // ===== PRINT OVERLAY =====
 function abrirPrintOverlay(html) {
+  // Show preview overlay
   var overlay = document.getElementById('print-overlay');
   var content = document.getElementById('print-content');
   if (!overlay || !content) return;
   content.innerHTML = html;
   overlay.classList.add('active');
   document.body.style.overflow = 'hidden';
+  // Store html for printing
+  window._pdfHtml = html;
 }
+
 function fecharPrintOverlay() {
   var overlay = document.getElementById('print-overlay');
   if (overlay) overlay.classList.remove('active');
   document.body.style.overflow = '';
   var content = document.getElementById('print-content');
   if (content) content.innerHTML = '';
+  window._pdfHtml = null;
+}
+
+function imprimirViaIframe() {
+  var html = window._pdfHtml;
+  if (!html) return;
+  // Remove any existing print iframe
+  var old = document.getElementById('_print_frame');
+  if (old) old.parentNode.removeChild(old);
+  // Create hidden iframe
+  var iframe = document.createElement('iframe');
+  iframe.id = '_print_frame';
+  iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:210mm;height:297mm;border:none;visibility:hidden;';
+  document.body.appendChild(iframe);
+  // Write content to iframe
+  try {
+    var doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open('text/html', 'replace');
+    doc.write(html);
+    doc.close();
+    // Wait for content to render then print
+    iframe.onload = function() {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch(e) {
+        window.print();
+      }
+      setTimeout(function() {
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      }, 3000);
+    };
+    // Fallback timeout if onload doesn't fire
+    setTimeout(function() {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch(e) { window.print(); }
+    }, 800);
+  } catch(e) {
+    // Last resort: print overlay directly
+    window.print();
+  }
 }
 
 // ===== CODIGOS DE ATIVACAO =====
