@@ -913,18 +913,18 @@ const cardsData = [
 // Format: {pwd, expires: 'YYYY-MM-DD' or null}
 const PWDS_CONFIG = [
   {pwd:'acc2025', expires:null},
-  {pwd:'lek18072026',  expires:'2026-07-19'},
-  {pwd:'acepv05092026',expires:'2026-09-06'},
-  {pwd:'ter22082026',  expires:'2026-08-23'},
-  {pwd:'aec12092026',  expires:'2026-09-13'},
-  {pwd:'kef17102026',  expires:'2026-10-18'},
-  {pwd:'eef10102026',  expires:'2026-10-11'},
-  {pwd:'lej01052027',  expires:'2026-06-25'},
-  {pwd:'neres2026',  expires:'2026-06-22'},
-  {pwd:'vej24102026',  expires:'2026-06-22'},
-  {pwd:'nel31122026',  expires:'2026-06-28'},
+  {pwd:'nel31122026', expira:'2026-06-28'},
+  {pwd:'lek18072026', expira:'2026-07-19'},
+  {pwd:'aecvp05092026', expira:'2026-09-06'},
+  {pwd:'ter22082026', expira:'2026-08-23'},
+  {pwd:'AEC12092026', expira:'2026-09-12'},
+  {pwd:'keff12102026', expira:'2026-10-18'},
+  {pwd:'efel10052027', expira:'2027-05-10'},
+  {pwd:'lejo15052027', expira:'2026-06-25'},
+  {pwd:'neres2026', expira:'2026-06-22'},
+  {pwd:'ve24102026', expira:'2026-08-22'},
 ];
-
+  
 function isPwdValid(entry) {
   if (!entry) return false;
   if (!entry.expires) return true;
